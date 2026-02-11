@@ -1,6 +1,6 @@
 ---
 name: x-apify
-version: 1.0.1
+version: 1.0.2
 description: Fetch X/Twitter data via Apify actors. Search tweets, get user profiles, retrieve specific tweets with replies. Features local caching to save API costs. Works from any IP via Apify's proxy infrastructure.
 tags: [twitter, x, apify, tweets, social-media, search, scraping, caching]
 metadata: {"openclaw":{"requires":{"bins":["python3"],"env":{"APIFY_API_TOKEN":{"required":true,"description":"Apify API token from https://console.apify.com/account/integrations"},"APIFY_ACTOR_ID":{"required":false,"default":"quacker~twitter-scraper","description":"Apify actor ID to use (default: quacker~twitter-scraper)"},"X_APIFY_CACHE_DIR":{"required":false,"description":"Custom cache directory (default: .cache/ in skill dir)"}}}}}

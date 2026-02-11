@@ -1,6 +1,6 @@
 {
   "name": "@openclaw/x-apify",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Fetch X/Twitter data via Apify actors. Search tweets, get user profiles, retrieve specific tweets with replies. Features local caching.",
   "author": "robbyczgw-cla",
   "license": "MIT",
@@ -20,7 +20,7 @@
     "type": "git",
     "url": "https://github.com/robbyczgw-cla/x-apify.git"
   },
-  "homepage": "https://clawhub.ai/robbyczgw-cla/x-apify",
+  "homepage": "https://github.com/robbyczgw-cla/x-apify",
   "bugs": {
     "url": "https://github.com/robbyczgw-cla/x-apify/issues"
   },
