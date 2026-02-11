@@ -1,0 +1,26 @@
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+
+# Cache and data directories
+.cache/
+.data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# Output files
+*.txt
+*.json
+!package.json
+
+# IDE
+.vscode/
+.idea/
