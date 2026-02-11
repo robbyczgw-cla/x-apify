@@ -42,7 +42,7 @@ See [SKILL.md](SKILL.md) for full documentation, setup instructions, and usage e
 
 - [Apify Free Tier](https://apify.com/pricing) - $5/month free
 - [Get API Key](https://console.apify.com/account/integrations)
-- [Tweet Scraper V2 Actor](https://apify.com/apidojo/tweet-scraper)
+- [Twitter Scraper Actor](https://apify.com/quacker/twitter-scraper)
 
 ## Requirements
 

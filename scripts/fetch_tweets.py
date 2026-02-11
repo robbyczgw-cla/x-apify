@@ -163,8 +163,7 @@ def search_tweets(query, max_results, api_token, use_cache):
     
     input_data = {
         "searchTerms": [query],
-        "maxTweets": max_results,
-        "sort": "Latest",
+        "maxItems": max_results,
     }
     
     results = run_apify_actor(input_data, api_token)
@@ -196,8 +195,8 @@ def get_user_tweets(username, max_results, api_token, use_cache):
     print(f"Fetching tweets from: @{username}", file=sys.stderr)
     
     input_data = {
-        "twitterHandles": [username],
-        "maxTweets": max_results,
+        "startUrls": [{"url": f"https://x.com/{username}"}],
+        "maxItems": max_results,
     }
     
     results = run_apify_actor(input_data, api_token)
@@ -233,9 +232,8 @@ def get_tweet_by_url(url, api_token, use_cache):
         url = f"https://x.com/i/status/{tweet_id}"
     
     input_data = {
-        "startUrls": [url],
-        "maxTweets": 50,  # Include replies
-        "includeReplies": True,
+        "startUrls": [{"url": url}],
+        "maxItems": 50,  # Include replies when available
     }
     
     results = run_apify_actor(input_data, api_token)
@@ -255,15 +253,17 @@ def format_results(mode, identifier, raw_results):
     tweets = []
     
     for item in raw_results:
+        screen_name = item.get('user', {}).get('screen_name', '')
+        tweet_id = item.get('id_str', item.get('id', ''))
         tweet = {
-            'id': item.get('id', item.get('id_str', '')),
+            'id': tweet_id,
             'text': item.get('text', item.get('full_text', '')),
-            'author': item.get('author', {}).get('userName', item.get('user', {}).get('screen_name', '')),
-            'author_name': item.get('author', {}).get('name', item.get('user', {}).get('name', '')),
-            'created_at': item.get('createdAt', item.get('created_at', '')),
-            'likes': item.get('likeCount', item.get('favorite_count', 0)),
-            'retweets': item.get('retweetCount', item.get('retweet_count', 0)),
-            'replies': item.get('replyCount', 0),
+            'author': screen_name,
+            'author_name': item.get('user', {}).get('name', ''),
+            'created_at': item.get('created_at', item.get('createdAt', '')),
+            'likes': item.get('favorite_count', item.get('likeCount', 0)),
+            'retweets': 0,
+            'replies': item.get('conversation_count', item.get('replyCount', 0)),
             'url': item.get('url', ''),
         }
         

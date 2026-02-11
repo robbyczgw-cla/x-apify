@@ -1,6 +1,6 @@
 {
   "name": "@openclaw/x-apify",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Fetch X/Twitter data via Apify actors. Search tweets, get user profiles, retrieve specific tweets with replies. Features local caching.",
   "author": "robbyczgw-cla",
   "license": "MIT",
@@ -50,7 +50,7 @@
         },
         "APIFY_ACTOR_ID": {
           "required": false,
-          "default": "apidojo~tweet-scraper"
+          "default": "quacker~twitter-scraper"
         },
         "X_APIFY_CACHE_DIR": {
           "required": false,
