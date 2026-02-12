@@ -410,11 +410,17 @@ def main():
     else:
         output = format_output_summary(data)
     
-    # Write output
+    # Write output (path-jailed to script directory for safety)
     if args.output:
-        with open(args.output, "w", encoding="utf-8") as f:
+        safe_dir = os.path.dirname(os.path.abspath(__file__))
+        out_path = os.path.abspath(args.output)
+        if not out_path.startswith(safe_dir) and not out_path.startswith("/tmp"):
+            print(f"Error: output path must be under {safe_dir} or /tmp", file=sys.stderr)
+            sys.exit(1)
+        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+        with open(out_path, "w", encoding="utf-8") as f:
             f.write(output)
-        print(f"Results saved to: {args.output}", file=sys.stderr)
+        print(f"Results saved to: {out_path}", file=sys.stderr)
     else:
         print(output)
     
