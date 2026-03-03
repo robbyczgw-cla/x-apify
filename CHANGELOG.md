@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.5] - 2026-03-03
+
+### Changed
+- Synced version metadata and retained recent output/path safety fixes.
+
+
 ## [1.0.1] - 2026-02-11
 
 ### Fixed
