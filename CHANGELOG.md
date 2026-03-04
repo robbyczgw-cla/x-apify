@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.6] - 2026-03-04
+
+### Fixed
+- Switched default actor from deprecated `quacker~twitter-scraper` to `kaitoeasyapi` ($0.25/1000 tweets, 32M runs)
+- Updated tweet field mapping for new actor schema (`author.userName`, `createdAt`, `likeCount`, `retweetCount`, `replyCount`)
+- Search now returns real results (~20 tweets) vs 0 with old actor
+
 ## [1.0.5] - 2026-03-03
 
 ### Changed

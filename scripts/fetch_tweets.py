@@ -253,18 +253,21 @@ def format_results(mode, identifier, raw_results):
     tweets = []
     
     for item in raw_results:
-        screen_name = item.get('user', {}).get('screen_name', '')
-        tweet_id = item.get('id_str', item.get('id', ''))
+        # Support both kaitoeasyapi schema (author.userName) and legacy (user.screen_name)
+        author_obj = item.get('author') or item.get('user') or {}
+        screen_name = author_obj.get('userName') or author_obj.get('screen_name', '')
+        author_name = author_obj.get('name', screen_name)
+        tweet_id = item.get('id') or item.get('id_str', '')
         tweet = {
-            'id': tweet_id,
+            'id': str(tweet_id),
             'text': item.get('text', item.get('full_text', '')),
             'author': screen_name,
-            'author_name': item.get('user', {}).get('name', ''),
-            'created_at': item.get('created_at', item.get('createdAt', '')),
-            'likes': item.get('favorite_count', item.get('likeCount', 0)),
-            'retweets': 0,
-            'replies': item.get('conversation_count', item.get('replyCount', 0)),
-            'url': item.get('url', ''),
+            'author_name': author_name,
+            'created_at': item.get('createdAt', item.get('created_at', '')),
+            'likes': item.get('likeCount', item.get('favorite_count', 0)),
+            'retweets': item.get('retweetCount', item.get('retweet_count', 0)),
+            'replies': item.get('replyCount', item.get('conversation_count', 0)),
+            'url': item.get('url', item.get('twitterUrl', '')),
         }
         
         # Build URL if not present

@@ -10,7 +10,7 @@ from pathlib import Path
 
 # API configuration
 APIFY_API_BASE = "https://api.apify.com/v2"
-DEFAULT_ACTOR_ID = "quacker~twitter-scraper"
+DEFAULT_ACTOR_ID = "CJdippxWmn9uRfooo"  # kaitoeasyapi - $0.25/1000 tweets, 32M runs
 
 # Defaults
 DEFAULT_MAX_RESULTS = 20
