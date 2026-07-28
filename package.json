@@ -1,7 +1,7 @@
 {
   "name": "@openclaw/x-apify",
-  "version": "1.0.6",
-  "description": "Fetch X/Twitter data via Apify actors. Search tweets, get user profiles, retrieve specific tweets with replies. Features local caching.",
+  "version": "1.1.0",
+  "description": "Fetch public X/Twitter posts and audiences through Apify Actors with bounded Xquik routes and local caching.",
   "author": "robbyczgw-cla",
   "license": "MIT",
   "keywords": [
@@ -14,7 +14,9 @@
     "social-media",
     "search",
     "scraping",
-    "caching"
+    "caching",
+    "followers",
+    "audience"
   ],
   "repository": {
     "type": "git",
@@ -31,12 +33,16 @@
       "tweet search",
       "x search",
       "get tweets",
-      "twitter user"
+      "twitter user",
+      "x followers",
+      "x following",
+      "verified followers"
     ],
     "capabilities": [
       "tweet-search",
       "user-profiles",
       "tweet-retrieval",
+      "audience-retrieval",
       "caching"
     ],
     "requirements": {
@@ -45,12 +51,12 @@
       ],
       "env": {
         "APIFY_API_TOKEN": {
-          "required": true,
-          "description": "Apify API token"
+          "required": false,
+          "description": "Apify API token required only for Actor execution"
         },
         "APIFY_ACTOR_ID": {
           "required": false,
-          "default": "quacker~twitter-scraper"
+          "default": "CJdippxWmn9uRfooo"
         },
         "X_APIFY_CACHE_DIR": {
           "required": false,

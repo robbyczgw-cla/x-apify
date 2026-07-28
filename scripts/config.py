@@ -10,7 +10,9 @@ from pathlib import Path
 
 # API configuration
 APIFY_API_BASE = "https://api.apify.com/v2"
-DEFAULT_ACTOR_ID = "CJdippxWmn9uRfooo"  # kaitoeasyapi - $0.25/1000 tweets, 32M runs
+DEFAULT_ACTOR_ID = "CJdippxWmn9uRfooo"
+XQUIK_TWEET_ACTOR_ID = "xquik~x-tweet-scraper"
+XQUIK_FOLLOWER_ACTOR_ID = "xquik~x-follower-scraper"
 
 # Defaults
 DEFAULT_MAX_RESULTS = 20
@@ -51,6 +53,22 @@ def get_cache_dir():
     if env_dir:
         return Path(env_dir)
     return get_skill_dir() / ".cache"
+
+
+def is_allowed_output_path(output_path, skill_dir):
+    """Allow output only inside the skill directory or /tmp."""
+    resolved_path = os.path.realpath(os.path.abspath(output_path))
+    allowed_roots = (
+        os.path.realpath(skill_dir),
+        os.path.realpath("/tmp"),
+    )
+    for root in allowed_roots:
+        try:
+            if os.path.commonpath((resolved_path, root)) == root:
+                return True, resolved_path
+        except ValueError:
+            continue
+    return False, resolved_path
 
 
 def sanitize_query(query):
