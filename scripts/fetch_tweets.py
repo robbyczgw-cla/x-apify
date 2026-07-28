@@ -57,6 +57,7 @@ from xquik_routes import (
     build_user_input,
     build_xquik_cli_plan,
     get_audience_selection,
+    is_xquik_tweet_actor,
     normalize_tweet_url,
     normalize_username_target,
 )
@@ -336,7 +337,12 @@ def _validate_route(parser, args):
     if args.max_results < 1:
         parser.error("--max-results must be at least 1")
 
-    is_xquik_route = args.xquik or bool(audience_target)
+    configured_actor_id = get_actor_id()
+    is_xquik_route = (
+        args.xquik
+        or bool(audience_target)
+        or (has_post_mode and is_xquik_tweet_actor(configured_actor_id))
+    )
     if args.execute and not is_xquik_route:
         parser.error("--execute is only valid with --xquik or an audience mode")
     return relation, audience_target, is_xquik_route
@@ -345,7 +351,12 @@ def _validate_route(parser, args):
 def _print_plan_or_continue(parser, args, is_xquik_route):
     if is_xquik_route and not args.execute:
         try:
-            plan = build_xquik_cli_plan(args)
+            tweet_actor_id = (
+                XQUIK_TWEET_ACTOR_ID
+                if args.xquik
+                else get_actor_id()
+            )
+            plan = build_xquik_cli_plan(args, tweet_actor_id)
         except ValueError as error:
             parser.error(str(error))
         print(format_output_json(plan))

@@ -123,7 +123,10 @@ class ResultHandlingTests(unittest.TestCase):
 
 
 class PlanCliTests(unittest.TestCase):
-    def run_plan(self, *arguments):
+    def run_plan(self, *arguments, environment=None):
+        process_environment = {"PYTHONIOENCODING": "utf-8"}
+        if environment:
+            process_environment.update(environment)
         completed = subprocess.run(
             [
                 sys.executable,
@@ -132,7 +135,7 @@ class PlanCliTests(unittest.TestCase):
                 *arguments,
             ],
             cwd=str(REPOSITORY_DIR),
-            env={"PYTHONIOENCODING": "utf-8"},
+            env=process_environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -171,6 +174,22 @@ class PlanCliTests(unittest.TestCase):
             fetch_tweets.XQUIK_FOLLOWER_ACTOR_ID,
         )
         self.assertEqual(plan["input"]["twitterHandles"], ["example"])
+
+    def test_environment_selected_xquik_actor_is_plan_first(self):
+        for actor_id in (
+            fetch_tweets.XQUIK_TWEET_ACTOR_ID,
+            "wAusCMrm284Voaw86",
+        ):
+            with self.subTest(actor_id=actor_id):
+                plan = self.run_plan(
+                    "--search",
+                    "product launch",
+                    environment={"APIFY_ACTOR_ID": actor_id},
+                )
+
+                self.assertFalse(plan["execute"])
+                self.assertEqual(plan["actor_id"], actor_id)
+                self.assertEqual(plan["input"]["mode"], "search")
 
 
 if __name__ == "__main__":

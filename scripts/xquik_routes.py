@@ -199,7 +199,7 @@ def get_audience_selection(args):
     return None, None
 
 
-def build_xquik_cli_plan(args):
+def build_xquik_cli_plan(args, tweet_actor_id=XQUIK_TWEET_ACTOR_ID):
     """Build the exact Xquik request selected on the command line."""
     relation, target = get_audience_selection(args)
     if relation:
@@ -218,21 +218,21 @@ def build_xquik_cli_plan(args):
         input_data = build_search_input(
             query,
             args.max_results,
-            XQUIK_TWEET_ACTOR_ID,
+            tweet_actor_id,
         )
     elif args.user:
         username = normalize_username_target(args.user)
         input_data = build_user_input(
             username,
             args.max_results,
-            XQUIK_TWEET_ACTOR_ID,
+            tweet_actor_id,
         )
     else:
         url, _ = normalize_tweet_url(args.url)
         input_data = build_tweet_input(
             url,
             args.max_results,
-            XQUIK_TWEET_ACTOR_ID,
+            tweet_actor_id,
         )
 
-    return build_plan(XQUIK_TWEET_ACTOR_ID, input_data)
+    return build_plan(tweet_actor_id, input_data)
