@@ -50,7 +50,7 @@ def get_ttl_for_mode(mode):
     """Get TTL in seconds for the given mode."""
     if mode == 'search':
         return CACHE_TTL_SEARCH
-    elif mode == 'user':
+    elif mode == 'user' or mode.startswith('audience-'):
         return CACHE_TTL_PROFILE
     else:  # url/tweet
         return CACHE_TTL_TWEET

@@ -6,40 +6,35 @@ Usage:
     python3 fetch_tweets.py --search "query"
     python3 fetch_tweets.py --user "username"
     python3 fetch_tweets.py --url "https://x.com/user/status/123"
+    python3 fetch_tweets.py --search "query" --xquik
+    python3 fetch_tweets.py --followers "username"
     python3 fetch_tweets.py --cache-stats
     python3 fetch_tweets.py --clear-cache
 
-Requires:
-    - APIFY_API_TOKEN environment variable
-    - requests library (pip install requests)
+Actor execution requires APIFY_API_TOKEN and requests. Planning does not.
 """
 
-import argparse
-import json
+import os
 import sys
 import time
-from datetime import datetime, timezone
 
 # Add scripts directory to path for imports
-import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
     import requests
 except ImportError:
-    print("Error: 'requests' library not installed.", file=sys.stderr)
-    print("Install with: pip install requests", file=sys.stderr)
-    sys.exit(1)
+    requests = None
 
 from config import (
     APIFY_API_BASE,
     DEFAULT_MAX_RESULTS,
+    XQUIK_FOLLOWER_ACTOR_ID,
+    XQUIK_TWEET_ACTOR_ID,
     get_api_token,
     get_actor_id,
+    is_allowed_output_path,
     sanitize_query,
-    sanitize_username,
-    extract_tweet_id,
-    extract_username_from_url,
 )
 from cache import (
     load_from_cache,
@@ -47,386 +42,402 @@ from cache import (
     clear_cache,
     print_cache_stats,
 )
+from arguments import build_parser
+from formatting import (
+    format_audience_results,
+    format_output_json,
+    format_output_summary,
+    format_results,
+)
+from xquik_routes import (
+    actor_cache_identifier,
+    build_audience_input,
+    build_search_input,
+    build_tweet_input,
+    build_user_input,
+    build_xquik_cli_plan,
+    get_audience_selection,
+    is_xquik_tweet_actor,
+    normalize_tweet_url,
+    normalize_username_target,
+)
 
 
-def run_apify_actor(input_data, api_token):
-    """
-    Run the Apify actor and return results.
-    
-    Args:
-        input_data: Actor input configuration
-        api_token: Apify API token
-    
-    Returns:
-        List of tweet objects from the actor
-    """
-    actor_id = get_actor_id()
+def run_apify_actor(input_data, api_token, actor_id=None):
+    """Run an Apify Actor and return its default dataset rows."""
+    if requests is None:
+        print("Error: 'requests' library not installed.", file=sys.stderr)
+        print("Install with: pip install requests", file=sys.stderr)
+        sys.exit(1)
+    actor_id = actor_id or get_actor_id()
+    run_id = _start_actor_run(input_data, api_token, actor_id)
+    dataset_id = _wait_for_actor(run_id, api_token)
+    return _fetch_dataset(dataset_id, api_token)
+
+
+def _auth_headers(api_token, include_content_type=False):
+    headers = {"Authorization": f"Bearer {api_token}"}
+    if include_content_type:
+        headers["Content-Type"] = "application/json"
+    return headers
+
+
+def _start_actor_run(input_data, api_token, actor_id):
     run_url = f"{APIFY_API_BASE}/acts/{actor_id}/runs"
-    
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_token}"
-    }
-    
+
     try:
-        # Start the run
         response = requests.post(
             run_url,
-            headers=headers,
+            headers=_auth_headers(api_token, include_content_type=True),
             json=input_data,
-            timeout=30
+            timeout=30,
         )
-        
+
         if response.status_code == 401:
             print("Error: Invalid API token.", file=sys.stderr)
             sys.exit(1)
-        
+
         if response.status_code == 402:
             print("Error: Apify quota exceeded. Check your billing:", file=sys.stderr)
             print("https://console.apify.com/billing", file=sys.stderr)
             sys.exit(1)
-        
+
         response.raise_for_status()
-        run_data = response.json()["data"]
-        run_id = run_data["id"]
-        
-    except requests.exceptions.RequestException as e:
-        print(f"Error starting Apify actor: {e}", file=sys.stderr)
+        return response.json()["data"]["id"]
+    except requests.exceptions.RequestException as error:
+        print(f"Error starting Apify actor: {error}", file=sys.stderr)
         sys.exit(1)
-    
-    # Wait for completion
+
+
+def _wait_for_actor(run_id, api_token):
     status_url = f"{APIFY_API_BASE}/actor-runs/{run_id}"
-    max_wait = 180  # seconds (tweets can take longer)
     start_time = time.time()
-    
-    while time.time() - start_time < max_wait:
+
+    while time.time() - start_time < 180:
         try:
             response = requests.get(
                 status_url,
-                headers={"Authorization": f"Bearer {api_token}"},
-                timeout=10
+                headers=_auth_headers(api_token),
+                timeout=10,
             )
             response.raise_for_status()
             status_data = response.json()["data"]
             status = status_data["status"]
-            
+
             if status == "SUCCEEDED":
-                break
-            elif status in ("FAILED", "ABORTED", "TIMED-OUT"):
+                return status_data["defaultDatasetId"]
+            if status in ("FAILED", "ABORTED", "TIMED-OUT"):
                 print(f"Error: Apify actor {status.lower()}.", file=sys.stderr)
                 sys.exit(1)
-            
+
             time.sleep(3)
-            
-        except requests.exceptions.RequestException as e:
-            print(f"Error checking status: {e}", file=sys.stderr)
+        except requests.exceptions.RequestException as error:
+            print(f"Error checking status: {error}", file=sys.stderr)
             sys.exit(1)
-    else:
-        print("Error: Timeout waiting for Apify actor.", file=sys.stderr)
-        sys.exit(1)
-    
-    # Get results from dataset
-    dataset_id = status_data["defaultDatasetId"]
+
+    print("Error: Timeout waiting for Apify actor.", file=sys.stderr)
+    sys.exit(1)
+
+
+def _fetch_dataset(dataset_id, api_token):
     dataset_url = f"{APIFY_API_BASE}/datasets/{dataset_id}/items"
-    
+
     try:
         response = requests.get(
             dataset_url,
-            headers={"Authorization": f"Bearer {api_token}"},
-            timeout=30
+            headers=_auth_headers(api_token),
+            timeout=30,
         )
         response.raise_for_status()
-        results = response.json()
-        
-        return results
-        
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching results: {e}", file=sys.stderr)
+        return response.json()
+    except requests.exceptions.RequestException as error:
+        print(f"Error fetching results: {error}", file=sys.stderr)
         sys.exit(1)
 
 
-def search_tweets(query, max_results, api_token, use_cache):
+def search_tweets(query, max_results, api_token, use_cache, actor_id=None):
     """Search for tweets by query."""
+    actor_id = actor_id or get_actor_id()
     query = sanitize_query(query)
     if not query:
         print("Error: Empty search query.", file=sys.stderr)
         sys.exit(1)
+    cache_identifier = actor_cache_identifier(
+        actor_id,
+        f"{query}:{max_results}",
+    )
     
     # Check cache
     if use_cache:
-        cached = load_from_cache('search', query)
+        cached = load_from_cache('search', cache_identifier)
         if cached:
             print(f"[cached] Search results for: {query}", file=sys.stderr)
             return cached, True
     
     print(f"Searching tweets for: {query}", file=sys.stderr)
     
-    input_data = {
-        "searchTerms": [query],
-        "maxItems": max_results,
-    }
-    
-    results = run_apify_actor(input_data, api_token)
+    input_data = build_search_input(query, max_results, actor_id)
+    results = run_apify_actor(input_data, api_token, actor_id)
     
     # Format results
     formatted = format_results('search', query, results)
     
     # Save to cache
     if use_cache:
-        save_to_cache('search', query, formatted)
+        save_to_cache('search', cache_identifier, formatted)
     
     return formatted, False
 
 
-def get_user_tweets(username, max_results, api_token, use_cache):
+def get_user_tweets(username, max_results, api_token, use_cache, actor_id=None):
     """Get tweets from a specific user."""
-    username = sanitize_username(username)
-    if not username:
-        print("Error: Invalid username.", file=sys.stderr)
+    actor_id = actor_id or get_actor_id()
+    try:
+        username = normalize_username_target(username)
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
+    cache_identifier = actor_cache_identifier(
+        actor_id,
+        f"{username}:{max_results}",
+    )
     
     # Check cache
     if use_cache:
-        cached = load_from_cache('user', username)
+        cached = load_from_cache('user', cache_identifier)
         if cached:
             print(f"[cached] Tweets from: @{username}", file=sys.stderr)
             return cached, True
     
     print(f"Fetching tweets from: @{username}", file=sys.stderr)
     
-    input_data = {
-        "startUrls": [{"url": f"https://x.com/{username}"}],
-        "maxItems": max_results,
-    }
-    
-    results = run_apify_actor(input_data, api_token)
+    input_data = build_user_input(username, max_results, actor_id)
+    results = run_apify_actor(input_data, api_token, actor_id)
     
     # Format results
     formatted = format_results('user', username, results)
     
     # Save to cache
     if use_cache:
-        save_to_cache('user', username, formatted)
+        save_to_cache('user', cache_identifier, formatted)
     
     return formatted, False
 
 
-def get_tweet_by_url(url, api_token, use_cache):
+def get_tweet_by_url(
+    url,
+    api_token,
+    use_cache,
+    max_results=50,
+    actor_id=None,
+):
     """Get a specific tweet and its replies by URL."""
-    tweet_id = extract_tweet_id(url)
-    if not tweet_id:
-        print(f"Error: Could not extract tweet ID from: {url}", file=sys.stderr)
+    actor_id = actor_id or get_actor_id()
+    try:
+        url, tweet_id = normalize_tweet_url(url)
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
         sys.exit(1)
+    cache_identifier = actor_cache_identifier(
+        actor_id,
+        f"{tweet_id}:{max_results}",
+    )
     
     # Check cache
     if use_cache:
-        cached = load_from_cache('url', tweet_id)
+        cached = load_from_cache('url', cache_identifier)
         if cached:
             print(f"[cached] Tweet: {tweet_id}", file=sys.stderr)
             return cached, True
     
     print(f"Fetching tweet: {tweet_id}", file=sys.stderr)
     
-    # Construct full URL if needed
-    if not url.startswith('http'):
-        url = f"https://x.com/i/status/{tweet_id}"
-    
-    input_data = {
-        "startUrls": [{"url": url}],
-        "maxItems": 50,  # Include replies when available
-    }
-    
-    results = run_apify_actor(input_data, api_token)
+    input_data = build_tweet_input(url, max_results, actor_id)
+    results = run_apify_actor(input_data, api_token, actor_id)
     
     # Format results
     formatted = format_results('url', url, results)
     
     # Save to cache
     if use_cache:
-        save_to_cache('url', tweet_id, formatted)
+        save_to_cache('url', cache_identifier, formatted)
     
     return formatted, False
 
 
-def format_results(mode, identifier, raw_results):
-    """Format raw Apify results into standardized output."""
-    tweets = []
-    
-    for item in raw_results:
-        # Support both kaitoeasyapi schema (author.userName) and legacy (user.screen_name)
-        author_obj = item.get('author') or item.get('user') or {}
-        screen_name = author_obj.get('userName') or author_obj.get('screen_name', '')
-        author_name = author_obj.get('name', screen_name)
-        tweet_id = item.get('id') or item.get('id_str', '')
-        tweet = {
-            'id': str(tweet_id),
-            'text': item.get('text', item.get('full_text', '')),
-            'author': screen_name,
-            'author_name': author_name,
-            'created_at': item.get('createdAt', item.get('created_at', '')),
-            'likes': item.get('likeCount', item.get('favorite_count', 0)),
-            'retweets': item.get('retweetCount', item.get('retweet_count', 0)),
-            'replies': item.get('replyCount', item.get('conversation_count', 0)),
-            'url': item.get('url', item.get('twitterUrl', '')),
-        }
-        
-        # Build URL if not present
-        if not tweet['url'] and tweet['author'] and tweet['id']:
-            tweet['url'] = f"https://x.com/{tweet['author']}/status/{tweet['id']}"
-        
-        tweets.append(tweet)
-    
-    return {
-        'query': identifier,
-        'mode': mode,
-        'fetched_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
-        'count': len(tweets),
-        'tweets': tweets,
-    }
+def get_audience(
+    username,
+    relation,
+    max_results,
+    api_token,
+    use_cache,
+):
+    """Get an X audience relation through Xquik X Follower Scraper."""
+    try:
+        username = normalize_username_target(username)
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        sys.exit(1)
+
+    mode = f"audience-{relation}"
+    cache_identifier = actor_cache_identifier(
+        XQUIK_FOLLOWER_ACTOR_ID,
+        f"{username}:{max_results}",
+    )
+
+    if use_cache:
+        cached = load_from_cache(mode, cache_identifier)
+        if cached:
+            print(
+                f"[cached] {relation.replace('_', ' ')} for: @{username}",
+                file=sys.stderr,
+            )
+            return cached, True
+
+    print(
+        f"Fetching {relation.replace('_', ' ')} for: @{username}",
+        file=sys.stderr,
+    )
+    input_data = build_audience_input(username, relation, max_results)
+    results = run_apify_actor(
+        input_data,
+        api_token,
+        XQUIK_FOLLOWER_ACTOR_ID,
+    )
+    formatted = format_audience_results(relation, username, results)
+
+    if use_cache:
+        save_to_cache(mode, cache_identifier, formatted)
+
+    return formatted, False
 
 
-def format_output_json(data):
-    """Format data as JSON string."""
-    return json.dumps(data, indent=2, ensure_ascii=False)
-
-
-def format_output_summary(data):
-    """Format data as human-readable summary."""
-    lines = []
-    
-    mode_labels = {
-        'search': 'Search Results',
-        'user': 'User Tweets',
-        'url': 'Tweet Details',
-    }
-    
-    lines.append(f"=== X/Twitter {mode_labels.get(data['mode'], 'Results')} ===")
-    lines.append(f"Query: {data['query']}")
-    lines.append(f"Fetched: {data['fetched_at']}")
-    lines.append(f"Results: {data['count']} tweets")
-    lines.append("")
-    
-    for tweet in data['tweets']:
-        lines.append("---")
-        lines.append(f"@{tweet['author']} ({tweet['author_name']})")
-        lines.append(f"{tweet['created_at']}")
-        lines.append(tweet['text'])
-        lines.append(f"[Likes: {tweet['likes']} | RTs: {tweet['retweets']} | Replies: {tweet['replies']}]")
-        if tweet['url']:
-            lines.append(tweet['url'])
-        lines.append("")
-    
-    return "\n".join(lines)
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Fetch X/Twitter data via Apify API with local caching"
-    )
-    
-    # Mode arguments (mutually exclusive)
-    mode_group = parser.add_mutually_exclusive_group()
-    mode_group.add_argument(
-        "--search", "-s",
-        metavar="QUERY",
-        help="Search tweets by keywords, hashtags, mentions"
-    )
-    mode_group.add_argument(
-        "--user", "-u",
-        metavar="USERNAME",
-        help="Get tweets from a specific user"
-    )
-    mode_group.add_argument(
-        "--url",
-        metavar="URL",
-        help="Get a specific tweet and replies by URL"
-    )
-    
-    # Options
-    parser.add_argument(
-        "--max-results", "-n",
-        type=int,
-        default=DEFAULT_MAX_RESULTS,
-        help=f"Maximum results to fetch (default: {DEFAULT_MAX_RESULTS})"
-    )
-    parser.add_argument(
-        "--format", "-f",
-        choices=["json", "summary"],
-        default="json",
-        help="Output format (default: json)"
-    )
-    parser.add_argument(
-        "--output", "-o",
-        metavar="FILE",
-        help="Output file path (default: stdout)"
-    )
-    
-    # Cache options
-    parser.add_argument(
-        "--no-cache",
-        action="store_true",
-        help="Bypass cache (always fetch fresh)"
-    )
-    parser.add_argument(
-        "--clear-cache",
-        action="store_true",
-        help="Clear all cached results and exit"
-    )
-    parser.add_argument(
-        "--cache-stats",
-        action="store_true",
-        help="Show cache statistics and exit"
-    )
-    
-    args = parser.parse_args()
-    
-    # Handle cache management commands (no API token needed)
+def _handle_cache_command(args):
     if args.clear_cache:
         clear_cache()
-        return
-    
+        return True
     if args.cache_stats:
         print_cache_stats()
-        return
-    
-    # Need at least one mode
-    if not args.search and not args.user and not args.url:
+        return True
+    return False
+
+
+def _validate_route(parser, args):
+    relation, audience_target = get_audience_selection(args)
+    has_post_mode = args.search or args.user or args.url
+
+    if not has_post_mode and not audience_target:
         parser.print_help()
-        print("\nError: Specify --search, --user, or --url", file=sys.stderr)
+        print(
+            "\nError: Specify a post or audience mode.",
+            file=sys.stderr,
+        )
         sys.exit(1)
-    
-    # Get API token
+
+    if args.max_results < 1:
+        parser.error("--max-results must be at least 1")
+
+    configured_actor_id = get_actor_id()
+    is_xquik_route = (
+        args.xquik
+        or bool(audience_target)
+        or (has_post_mode and is_xquik_tweet_actor(configured_actor_id))
+    )
+    if args.execute and not is_xquik_route:
+        parser.error("--execute is only valid with --xquik or an audience mode")
+    return relation, audience_target, is_xquik_route
+
+
+def _print_plan_or_continue(parser, args, is_xquik_route):
+    if is_xquik_route and not args.execute:
+        try:
+            tweet_actor_id = (
+                XQUIK_TWEET_ACTOR_ID
+                if args.xquik
+                else get_actor_id()
+            )
+            plan = build_xquik_cli_plan(args, tweet_actor_id)
+        except ValueError as error:
+            parser.error(str(error))
+        print(format_output_json(plan))
+        return False
+    return True
+
+
+def _execute_route(args, relation, audience_target):
     api_token = get_api_token()
     use_cache = not args.no_cache
-    
-    # Execute based on mode
+    actor_id = XQUIK_TWEET_ACTOR_ID if args.xquik else get_actor_id()
+
     if args.search:
-        data, from_cache = search_tweets(args.search, args.max_results, api_token, use_cache)
-    elif args.user:
-        data, from_cache = get_user_tweets(args.user, args.max_results, api_token, use_cache)
-    else:  # args.url
-        data, from_cache = get_tweet_by_url(args.url, api_token, use_cache)
-    
-    # Format output
+        return search_tweets(
+            args.search,
+            args.max_results,
+            api_token,
+            use_cache,
+            actor_id,
+        )
+    if args.user:
+        return get_user_tweets(
+            args.user,
+            args.max_results,
+            api_token,
+            use_cache,
+            actor_id,
+        )
+    if args.url:
+        return get_tweet_by_url(
+            args.url,
+            api_token,
+            use_cache,
+            args.max_results,
+            actor_id,
+        )
+    return get_audience(
+        audience_target,
+        relation,
+        args.max_results,
+        api_token,
+        use_cache,
+    )
+
+
+def _write_output(args, data):
     if args.format == "json":
         output = format_output_json(data)
     else:
         output = format_output_summary(data)
-    
-    # Write output (path-jailed to script directory for safety)
+
     if args.output:
         safe_dir = os.path.dirname(os.path.abspath(__file__))
-        out_path = os.path.abspath(args.output)
-        if not out_path.startswith(safe_dir) and not out_path.startswith("/tmp"):
-            print(f"Error: output path must be under {safe_dir} or /tmp", file=sys.stderr)
+        is_allowed, out_path = is_allowed_output_path(args.output, safe_dir)
+        if not is_allowed:
+            print(
+                f"Error: output path must be under {safe_dir} or /tmp",
+                file=sys.stderr,
+            )
             sys.exit(1)
         os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(output)
+        with open(out_path, "w", encoding="utf-8") as output_file:
+            output_file.write(output)
         print(f"Results saved to: {out_path}", file=sys.stderr)
     else:
         print(output)
-    
+
+
+def main():
+    parser = build_parser(DEFAULT_MAX_RESULTS)
+    args = parser.parse_args()
+    if _handle_cache_command(args):
+        return
+
+    relation, audience_target, is_xquik_route = _validate_route(parser, args)
+    if not _print_plan_or_continue(parser, args, is_xquik_route):
+        return
+
+    data, from_cache = _execute_route(args, relation, audience_target)
+    _write_output(args, data)
+
     if not from_cache:
         print("\n[Apify credits used - check https://console.apify.com/billing]", file=sys.stderr)
 

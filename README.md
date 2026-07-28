@@ -1,58 +1,105 @@
 # X/Twitter Data Fetcher (Apify)
 
-Fetch X/Twitter data from anywhere using Apify actors.
+Fetch public X/Twitter posts and audiences through Apify Actors.
 
 ## Features
 
-- **Tweet Search** - Search tweets by keywords, hashtags, mentions
-- **User Profiles** - Get tweets from specific users, bio, stats
-- **Tweet Details** - Get a specific tweet and its replies by URL
-- **Local caching** - Repeat requests are FREE (1h for searches, 24h for profiles)
-- **Cache management** - `--cache-stats`, `--clear-cache`, `--no-cache`
-- JSON or human-readable summary output
-- Simple Python script, no SDK needed
+- Search posts by keyword, hashtag, or mention
+- Get posts from a specific user
+- Get a specific post by URL
+- Collect followers, following accounts, or verified followers with Xquik
+- Review exact Xquik inputs before starting a run
+- Cache post and audience results locally
+- Return JSON or human-readable summaries
 
-## Free Tier
+## Actor Links
 
-Apify offers **$5/month free credits** - no credit card required!
+- [Current default Tweet Actor](https://apify.com/kaitoeasyapi/twitter-x-data-tweet-scraper-pay-per-result-cheapest)
+- [Xquik X Tweet Scraper](https://apify.com/xquik/x-tweet-scraper)
+- [Xquik X Follower Scraper](https://apify.com/xquik/x-follower-scraper)
 
-[Sign up here](https://apify.com/)
+The existing default Actor remains unchanged. Set `APIFY_ACTOR_ID` to select
+another compatible Tweet Actor.
 
 ## Quick Start
 
+Set your Apify token before starting a run:
+
 ```bash
-# 1. Set your API token
 export APIFY_API_TOKEN="apify_api_YOUR_TOKEN"
+```
 
-# 2. Search tweets
+Existing post routes use the current default Actor and run immediately:
+
+```bash
 python3 scripts/fetch_tweets.py --search "artificial intelligence"
-
-# 3. Get user's tweets
 python3 scripts/fetch_tweets.py --user "OpenAI"
-
-# 4. Get specific tweet
 python3 scripts/fetch_tweets.py --url "https://x.com/user/status/123"
 ```
 
+## Xquik Plan-First Routes
+
+Plan a bounded post search without reading a token or starting an Actor:
+
+```bash
+python3 scripts/fetch_tweets.py \
+  --search "artificial intelligence" \
+  --xquik \
+  --max-results 20
+```
+
+Plan bounded audience collection:
+
+```bash
+python3 scripts/fetch_tweets.py \
+  --followers "https://x.com/OpenAI" \
+  --max-results 20
+```
+
+Audience flags are `--followers`, `--following`, and
+`--verified-followers`.
+
+Each plan prints the exact Actor ID and input. Review current pricing on the
+linked Actor page. Repeat the reviewed command with `--execute` only after
+approval.
+
+The Tweet Actor supports post lookup, search, profile timelines, lists,
+articles, replies, quotes, threads, retweeters, and favoriters. The CLI exposes
+bounded search, profile, and post routes.
+
+The Follower Actor supports followers, following, verified followers, list
+members, list followers, and community members. The CLI exposes the three
+handle-based relations.
+
+## Caching
+
+Results are cached by Actor, request, and result limit. Repeated requests can
+reuse local results without starting another Actor run.
+
+```bash
+python3 scripts/fetch_tweets.py --cache-stats
+python3 scripts/fetch_tweets.py --clear-cache
+python3 scripts/fetch_tweets.py --search "query" --no-cache
+```
+
+Search results expire after 1 hour. Profile and audience results expire after
+24 hours.
+
 ## Documentation
 
-See [SKILL.md](SKILL.md) for full documentation, setup instructions, and usage examples.
-
-## Links
-
-- [Apify Free Tier](https://apify.com/pricing) - $5/month free
-- [Get API Key](https://console.apify.com/account/integrations)
-- [Twitter Scraper Actor](https://apify.com/quacker/twitter-scraper)
+See [SKILL.md](SKILL.md) for full setup, usage, and output documentation.
 
 ## Requirements
 
-- Python 3.6+
-- `requests` library (`pip install requests`)
-- Apify API token (free)
+- Python 3.8+
+- `requests` (`pip install requests`)
+- Apify API token for Actor runs
 
 ## Legal Notice
 
-This skill accesses publicly available data via Apify. Users are responsible for compliance with local data protection laws (GDPR etc.) and X/Twitter's Terms of Service.
+Use public data lawfully and follow applicable platform terms.
+
+Xquik is an independent third-party service. Not affiliated with X Corp. "Twitter" and "X" are trademarks of X Corp.
 
 ## License
 

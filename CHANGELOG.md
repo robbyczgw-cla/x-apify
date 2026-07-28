@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0] - 2026-07-27
+
+### Added
+
+- Added plan-first Xquik X Tweet Scraper routes.
+- Added follower, following, and verified-follower collection.
+- Added bounded Actor inputs and explicit execution approval.
+- Added regression tests for Actor selection, plans, and result handling.
+
+### Fixed
+
+- Isolated cache entries by Actor and result limit.
+- Separated diagnostic and run-report rows from data records.
+- Enforced output-directory boundaries with resolved paths.
+- Synced the documented default Actor and minimum Python version.
+
 ## [1.0.6] - 2026-03-04
 
 ### Fixed
