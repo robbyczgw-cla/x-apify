@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.0] - 2026-08-31
+
+### Changed
+
+- Documented `apidojo~tweet-scraper` as the default actor. Apify API check on 2026-08-31: public, not deprecated, $0.40 per 1,000 tweets, 4,501,223 / 4,765,415 succeeded public runs in 30 days (0 failed).
+- Replaced the `quacker~twitter-scraper` store link with https://apify.com/apidojo/tweet-scraper. The quacker URL is a generic landing page; the actor is deprecated and under maintenance (6,746 failed of 31,025 public runs in 30 days).
+- Documented apidojo input (`searchTerms`, `startUrls`, `maxItems`) and output (`author.userName`, `createdAt`, `likeCount`, `retweetCount`, `replyCount`) versus the old quacker schema.
+- Documented actor limits: 50-tweet minimum, no single-tweet or reply scraping, Free-plan API restriction. `--url` needs `apidojo~twitter-scraper-lite`.
+- Switched the `scripts/config.py` default actor from `kaitoeasyapi` (`CJdippxWmn9uRfooo`) to `apidojo~tweet-scraper`. The payloads in `fetch_tweets.py` (`searchTerms`, `startUrls`, `maxItems`) are apidojo's input schema; kaitoeasyapi takes a different one and returned nothing for them.
+- Raised `DEFAULT_MAX_RESULTS` from 20 to 50. The actor rejects runs below 50 items, so the old default failed on every unqualified search.
+
 ## [1.0.6] - 2026-03-04
 
 ### Fixed
